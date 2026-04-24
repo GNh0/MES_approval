@@ -3,176 +3,22 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>전자결재 - TinyMCE 무료 에디터 적용</title>
+    <title>MES 전자결재 프로토타입</title>
 
-    <!--
-        캔버스/브라우저 테스트용 CDN입니다.
-        실제 MES/WebView2 배포 시에는 TinyMCE를 로컬 리소스 또는 DLL Embedded Resource로 포함하고
-        아래 script 경로를 tinymce/tinymce.min.js 로 바꾸면 됩니다.
-    -->
+    <!-- GitHub Pages 테스트용 CDN. 실제 WebView2 배포 시 tinymce/tinymce.min.js 로 교체 -->
     <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
-
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: #dcdcdc;
-            font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif;
-            font-size: 13px;
-            color: #000;
-        }
-        button, input, select, textarea { font-family: inherit; font-size: inherit; }
-        .wrap { width: 980px; margin: 0 auto; padding: 16px 0 30px; }
-        .action-bar { width: 860px; margin: 0 auto 8px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
-        .btn { height: 30px; padding: 0 12px; border: 1px solid #999; background: #fff; cursor: pointer; }
-        .btn:hover { background: #f4f4f4; }
-        .btn.primary { border-color: #1f6feb; background: #1f6feb; color: #fff; }
-        .btn.danger { border-color: #d1242f; background: #d1242f; color: #fff; }
-        .doc-page {
-            width: 860px;
-            min-height: 1120px;
-            margin: 0 auto;
-            padding: 54px 30px 34px;
-            background: #fff;
-            border: 1px solid #aaa;
-            box-shadow: 0 0 8px rgba(0,0,0,.18);
-        }
-        .doc-title { margin: 0 0 16px; text-align: center; font-size: 32px; font-weight: 700; letter-spacing: 8px; line-height: 1.1; }
-        .doc-frame { border: 1px solid #777; }
-        .doc-top { display: grid; grid-template-columns: 430px 1fr; border-bottom: 1px solid #999; }
-        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-        .info-table th, .info-table td {
-            border-right: 1px solid #b7b7b7;
-            border-bottom: 1px solid #b7b7b7;
-            height: 55px;
-            padding: 6px 7px;
-            vertical-align: middle;
-        }
-        .info-table tr:last-child th, .info-table tr:last-child td { border-bottom: none; }
-        .info-table td { border-right: none; }
-        .info-table th, .wide-info-table th {
-            width: 88px;
-            text-align: center;
-            font-weight: 400;
-            background: #fafafa;
-            letter-spacing: 3px;
-            white-space: nowrap;
-        }
-        .approval-area { display: grid; grid-template-columns: 38px 1fr; border-left: 1px solid #777; }
-        .approval-labels { display: grid; grid-template-rows: 110px 110px; border-right: 1px solid #777; }
-        .approval-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            border-bottom: 1px solid #777;
-            background: #fafafa;
-            font-weight: 700;
-            letter-spacing: 3px;
-        }
-        .approval-label:last-child { border-bottom: none; }
-        .approval-groups { display: grid; grid-template-rows: 110px 110px; }
-        .approval-group:first-child { border-bottom: 1px solid #777; }
-        .approval-table { height: 100%; }
-        .approval-table th, .approval-table td {
-            border-right: 1px solid #999;
-            border-bottom: 1px solid #999;
-            text-align: center;
-            vertical-align: middle;
-            padding: 0;
-            height: 26px;
-            font-size: 12px;
-        }
-        .approval-table th { height: 26px; background: #fff; font-weight: 700; }
-        .approval-table tr:last-child td { border-bottom: none; }
-        .approval-table th:last-child, .approval-table td:last-child { border-right: none; }
-        .approval-table .stamp-row td { height: 56px; }
-        .approval-table .name-row td { height: 28px; }
-        .stamp {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 52px;
-            height: 52px;
-            border: 2px solid #e11d2e;
-            border-radius: 50%;
-            color: #e11d2e;
-            font-size: 14px;
-            font-weight: 700;
-        }
-        .form-control { width: 100%; height: 30px; border: 1px solid #c9c9c9; padding: 0 7px; background: #fff; }
-        .readonly { color: #777; background: #f4f4f4; }
-        .inline { display: flex; gap: 6px; align-items: center; }
-        .wide-info-table th, .wide-info-table td {
-            border-right: 1px solid #b7b7b7;
-            border-bottom: 1px solid #b7b7b7;
-            height: 28px;
-            padding: 3px 6px;
-        }
-        .wide-info-table tr:last-child th, .wide-info-table tr:last-child td { border-bottom: none; }
-        .wide-info-table td { border-right: none; }
-        .with-button { display: grid; grid-template-columns: 1fr 28px; gap: 6px; }
-        .small-btn { width: 28px; height: 26px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
-        .subject-input { width: 100%; height: 28px; border: 1px solid #c9c9c9; padding: 0 7px; background: #fff5f5; }
-        .editor-wrap { border-top: 1px solid #777; }
-        .body-tab-bar {
-            height: 34px;
-            display: flex;
-            align-items: end;
-            gap: 3px;
-            padding: 4px 8px 0;
-            background: #eef1f7;
-            border-bottom: 1px solid #c6ceda;
-        }
-        .body-tab { height: 29px; padding: 0 13px; border: 1px solid #bfc7d4; border-bottom: none; background: #f8f9fb; cursor: pointer; }
-        .body-tab.active { background: #fff; font-weight: 700; color: #1f6feb; }
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
-        .editor-panel { min-height: 650px; background: #fff; }
-        .html-code {
-            width: 100%;
-            height: 650px;
-            display: block;
-            padding: 12px;
-            border: none;
-            outline: none;
-            resize: vertical;
-            font-family: Consolas, 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.45;
-            white-space: pre;
-        }
-        .preview-area { min-height: 650px; padding: 22px 0 34px; background: #fff; overflow: auto; }
-        .preview-inner { min-height: 560px; padding: 0; background: #fff; line-height: 1.65; }
-        .body-inner { font-size: 13px; }
-        .body-inner .center { text-align: center; }
-        .body-inner .gap { height: 22px; }
-        .section-title { margin: 26px 0 7px; font-size: 14px; font-weight: 700; }
-        .body-table th, .body-table td {
-            border: 1px solid #000;
-            height: 32px;
-            padding: 5px 6px;
-            text-align: center;
-            vertical-align: middle;
-            min-width: 48px;
-        }
-        .body-table th { background: #d9d9d9; font-weight: 700; }
-        .editor-load-error { padding: 18px; color: #d1242f; line-height: 1.7; }
-        @media print {
-            body { background: #fff; }
-            .wrap { width: auto; padding: 0; }
-            .action-bar { display: none; }
-            .doc-page { width: auto; min-height: auto; border: none; box-shadow: none; padding: 0; }
-        }
-    </style>
+    <link rel="stylesheet" href="./approval.css" />
 </head>
 <body>
     <div class="wrap">
         <div class="action-bar">
+            <button class="btn" onclick="approvalApp.applyTemplate()">템플릿 적용</button>
+            <button class="btn" onclick="approvalApp.applyCalculation()">자동계산</button>
+            <button class="btn" onclick="approvalApp.openLineEditor()">결재라인</button>
+            <button class="btn" onclick="approvalApp.demoApprove()">결재진행 테스트</button>
             <button class="btn" onclick="approvalApp.send('SAVE_DRAFT')">임시저장</button>
             <button class="btn primary" onclick="approvalApp.send('SUBMIT')">상신</button>
-            <button class="btn" onclick="approvalApp.send('APPROVE')">결재</button>
+            <button class="btn success" onclick="approvalApp.send('APPROVE')">결재</button>
             <button class="btn danger" onclick="approvalApp.send('REJECT')">반려</button>
             <button class="btn" onclick="approvalApp.send('CLOSE')">종결</button>
             <button class="btn" onclick="approvalApp.requestPdf()">PDF</button>
@@ -180,6 +26,7 @@
 
         <div id="docPage" class="doc-page">
             <h1 id="docTitle" class="doc-title">발주서</h1>
+
             <div class="doc-frame">
                 <div class="doc-top">
                     <table class="info-table">
@@ -218,6 +65,9 @@
                 </table>
 
                 <div class="editor-wrap">
+                    <div class="template-help">
+                        템플릿 토큰 예: {{PURNUM}}, {{CUSTNM}}, {{DETAIL_ROWS}} / 계산 속성 예: data-col="supply" data-formula="qty * unp"
+                    </div>
                     <div class="body-tab-bar">
                         <button id="tabEdit" class="body-tab active" onclick="approvalApp.changeBodyTab('edit')">문서편집</button>
                         <button id="tabHtml" class="body-tab" onclick="approvalApp.changeBodyTab('html')">HTML 코드</button>
@@ -241,273 +91,20 @@
         </div>
     </div>
 
-    <script>
-        (function () {
-            var currentTab = 'edit';
-            var editorReady = false;
-            var pendingBodyHtml = '';
+    <div id="lineModal" class="modal-backdrop">
+        <div class="modal-box">
+            <div class="modal-head">
+                <span>결재라인 편집</span>
+                <button class="btn" onclick="approvalApp.closeLineEditor()">닫기</button>
+            </div>
+            <div id="lineModalBody" class="modal-body"></div>
+            <div class="modal-foot">
+                <button id="lineModalCancel" class="btn">취소</button>
+                <button id="lineModalApply" class="btn primary">적용</button>
+            </div>
+        </div>
+    </div>
 
-            var sample = {
-                title: '발주서',
-                numberRule: '기본채번',
-                writeDate: '2026-04-24',
-                writeHour: '09',
-                writeMinute: '32',
-                deptName: '시스템구축',
-                writerName: '관리자',
-                receiverText: '',
-                executorText: '',
-                executeDate: '',
-                subject: '[발주서] 제일금속_20260331',
-                approvalLines: [
-                    { type: 'APPROVAL', role: '기안', userName: '관리자', status: 'APPROVED', statusName: '승인' },
-                    { type: 'APPROVAL', role: '검토', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'APPROVAL', role: '승인', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'APPROVAL', role: '승인', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'APPROVAL', role: '승인', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-                    { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' }
-                ],
-                bodyHtml:
-                    '<div class="body-inner">' +
-                    '<p class="center">아래와 같이 발주하고자 하오니 검토 후 재가 바랍니다.</p>' +
-                    '<div class="gap"></div>' +
-                    '<p class="center">- 아 래 -</p>' +
-                    '<div class="section-title">1. 발주정보</div>' +
-                    '<table class="body-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-                    '<thead><tr><th style="width:20%;">발주번호</th><th style="width:20%;">외주처</th><th style="width:20%;">주소</th><th style="width:20%;">담당자</th><th style="width:20%;">연락처</th></tr></thead>' +
-                    '<tbody><tr><td>P20260416003</td><td>제일금속</td><td></td><td></td><td></td></tr></tbody>' +
-                    '</table>' +
-                    '<div class="section-title">2. 상세내역</div>' +
-                    '<table class="body-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-                    '<thead><tr><th style="width:45px;">순번</th><th style="width:70px;">구분</th><th style="width:90px;">품명</th><th style="width:90px;">규격</th><th style="width:70px;">용도</th><th style="width:70px;">납기일</th><th style="width:55px;">수량</th><th style="width:45px;">단위</th><th style="width:55px;">단가</th><th style="width:70px;">공급액</th><th style="width:70px;">부가세</th><th style="width:70px;">합계액</th></tr></thead>' +
-                    '<tbody><tr><td>1</td><td>구매품</td><td>SLN G70</td><td>SLN G70</td><td></td><td>26.03.31</td><td>500</td><td>EA</td><td>960</td><td>480,000</td><td>48,000</td><td>528,000</td></tr></tbody>' +
-                    '</table>' +
-                    '</div>'
-            };
-
-            var app = {
-                model: {},
-
-                init: function () {
-                    this.initEditor();
-                    this.setApprovalData(sample);
-                },
-
-                initEditor: function () {
-                    if (!window.tinymce) {
-                        byId('bodyEditor').style.display = 'none';
-                        byId('editorLoadError').style.display = 'block';
-                        return;
-                    }
-
-                    tinymce.init({
-                        selector: '#bodyEditor',
-                        height: 650,
-                        menubar: 'file edit view insert format table tools help',
-                        branding: false,
-                        promotion: false,
-                        license_key: 'gpl',
-                        language: 'ko_KR',
-                        language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@24.10.7/langs7/ko_KR.js',
-                        plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount',
-                        toolbar: [
-                            'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor',
-                            'alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link image media | code preview fullscreen'
-                        ].join(' | '),
-                        table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | cellprops cellsplit cellmerge',
-                        table_resize_bars: true,
-                        table_sizing_mode: 'fixed',
-                        resize: false,
-                        extended_valid_elements: [
-                            'table[class|style|border|cellpadding|cellspacing|data-calc-table]',
-                            'tr[class|style|data-row-calc]',
-                            'th[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc]',
-                            'td[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc]'
-                        ].join(','),
-                        content_style: [
-                            "body { font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif; font-size:13px; line-height:1.65; }",
-                            '.body-inner { font-size:13px; }',
-                            '.center { text-align:center; }',
-                            '.gap { height:22px; }',
-                            '.section-title { margin:26px 0 7px; font-size:14px; font-weight:700; }',
-                            '.body-table th, .body-table td { border:1px solid #000; height:32px; padding:5px 6px; text-align:center; vertical-align:middle; min-width:48px; }',
-                            '.body-table th { background:#d9d9d9; font-weight:700; }'
-                        ].join('\n'),
-                        setup: function (editor) {
-                            editor.on('init', function () {
-                                editorReady = true;
-                                editor.setContent(pendingBodyHtml || '');
-                            });
-                        }
-                    });
-                },
-
-                setApprovalData: function (data) {
-                    this.model = data || {};
-                    setText('docTitle', this.model.title || '기안서');
-                    setSelectValue('numberRule', this.model.numberRule || '기본채번');
-                    setValue('writeDate', this.model.writeDate);
-                    setSelectValue('writeHour', this.model.writeHour);
-                    setSelectValue('writeMinute', this.model.writeMinute);
-                    setSelectValue('deptName', this.model.deptName);
-                    setText('writerName', this.model.writerName);
-                    setValue('receiverText', this.model.receiverText);
-                    setValue('executorText', this.model.executorText);
-                    setValue('executeDate', this.model.executeDate);
-                    setValue('subject', this.model.subject);
-                    this.renderApprovalLines();
-
-                    pendingBodyHtml = this.model.bodyHtml || '';
-                    if (editorReady) getEditor().setContent(pendingBodyHtml);
-                    byId('htmlCode').value = pendingBodyHtml;
-                    this.refreshPreview();
-                },
-
-                renderApprovalLines: function () {
-                    var lines = this.model.approvalLines || [];
-                    byId('approvalGroup').innerHTML = renderLineTable(lines.filter(function (x) { return x.type === 'APPROVAL'; }), 5);
-                    byId('agreementGroup').innerHTML = renderLineTable(lines.filter(function (x) { return x.type === 'AGREEMENT'; }), 5);
-                },
-
-                changeBodyTab: function (tab) {
-                    if (currentTab === 'edit' && tab === 'html') byId('htmlCode').value = this.getBodyHtml();
-                    if (currentTab === 'html' && tab !== 'html') this.setBodyHtml(byId('htmlCode').value || '');
-                    if (tab === 'preview') {
-                        if (currentTab === 'html') this.setBodyHtml(byId('htmlCode').value || '');
-                        this.refreshPreview();
-                    }
-                    currentTab = tab;
-                    toggleTab('edit', tab);
-                    toggleTab('html', tab);
-                    toggleTab('preview', tab);
-                },
-
-                getBodyHtml: function () {
-                    if (window.tinymce && editorReady && getEditor()) return getEditor().getContent();
-                    return pendingBodyHtml || '';
-                },
-
-                setBodyHtml: function (html) {
-                    pendingBodyHtml = html || '';
-                    if (window.tinymce && editorReady && getEditor()) getEditor().setContent(pendingBodyHtml);
-                },
-
-                refreshPreview: function () {
-                    byId('previewContent').innerHTML = this.getBodyHtml();
-                },
-
-                collect: function () {
-                    if (currentTab === 'html') this.setBodyHtml(byId('htmlCode').value || '');
-                    var data = JSON.parse(JSON.stringify(this.model || {}));
-                    data.title = byId('docTitle').innerText;
-                    data.numberRule = byId('numberRule').value;
-                    data.writeDate = byId('writeDate').value;
-                    data.writeHour = byId('writeHour').value;
-                    data.writeMinute = byId('writeMinute').value;
-                    data.deptName = byId('deptName').value;
-                    data.writerName = byId('writerName').innerText;
-                    data.receiverText = byId('receiverText').value;
-                    data.executorText = byId('executorText').value;
-                    data.executeDate = byId('executeDate').value;
-                    data.subject = byId('subject').value;
-                    data.bodyHtml = this.getBodyHtml();
-                    return data;
-                },
-
-                buildPreviewHtml: function () {
-                    var data = this.collect();
-                    var html = '';
-                    html += '<div class="preview-doc">';
-                    html += '<h1 class="doc-title">' + enc(data.title || '기안서') + '</h1>';
-                    html += '<div class="doc-frame">';
-                    html += '<div class="doc-top">';
-                    html += '<table class="info-table">';
-                    html += '<tr><th>품의번호</th><td>' + enc(data.numberRule || '') + '</td></tr>';
-                    html += '<tr><th>작성일자</th><td>' + enc(data.writeDate || '') + ' ' + enc(data.writeHour || '') + ':' + enc(data.writeMinute || '') + '</td></tr>';
-                    html += '<tr><th>기안부서</th><td>' + enc(data.deptName || '') + '</td></tr>';
-                    html += '<tr><th>기안자</th><td>' + enc(data.writerName || '') + '</td></tr>';
-                    html += '</table>';
-                    html += '<div class="approval-area"><div class="approval-labels"><div class="approval-label">결재</div><div class="approval-label">합의</div></div>';
-                    html += '<div class="approval-groups"><div class="approval-group">' + byId('approvalGroup').innerHTML + '</div><div class="approval-group">' + byId('agreementGroup').innerHTML + '</div></div></div>';
-                    html += '</div>';
-                    html += '<table class="wide-info-table">';
-                    html += '<tr><th>수신및참조</th><td>' + enc(data.receiverText || '') + '</td></tr>';
-                    html += '<tr><th>시행자</th><td>' + enc(data.executorText || '') + '</td></tr>';
-                    html += '<tr><th>시행일자</th><td>' + enc(data.executeDate || '') + '</td></tr>';
-                    html += '<tr><th>제목</th><td>' + enc(data.subject || '') + '</td></tr>';
-                    html += '</table>';
-                    html += '<div class="editor-wrap"><div class="preview-area"><div class="preview-inner">' + data.bodyHtml + '</div></div></div>';
-                    html += '</div></div>';
-                    return html;
-                },
-
-                send: function (messageType) {
-                    var payload = this.collect();
-                    payload.messageType = messageType;
-                    if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
-                    else { console.log(payload); alert(messageType + ' 요청'); }
-                },
-
-                requestPdf: function () {
-                    var payload = this.collect();
-                    payload.messageType = 'CREATE_PDF';
-                    payload.previewHtml = this.buildPreviewHtml();
-                    if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
-                    else { console.log(payload); alert('CREATE_PDF 요청'); }
-                }
-            };
-
-            window.approvalApp = app;
-            window.setApprovalData = function (data) { if (typeof data === 'string') data = JSON.parse(data); app.setApprovalData(data); };
-            window.getApprovalData = function () { return app.collect(); };
-
-            function getEditor() { return window.tinymce ? tinymce.get('bodyEditor') : null; }
-            function toggleTab(name, activeName) {
-                byId('tab' + cap(name)).classList.toggle('active', name === activeName);
-                byId('panel' + cap(name)).classList.toggle('active', name === activeName);
-            }
-            function renderLineTable(lines, maxCount) {
-                var list = [];
-                for (var i = 0; i < maxCount; i++) list.push(lines[i] || { role: '', userName: '', status: 'WAIT', statusName: '' });
-                var html = '<table class="approval-table">';
-                html += '<tr>' + list.map(function (x) { return '<th>' + enc(x.role || '') + '</th>'; }).join('') + '</tr>';
-                html += '<tr class="stamp-row">' + list.map(function (x) { return '<td>' + renderStamp(x) + '</td>'; }).join('') + '</tr>';
-                html += '<tr class="name-row">' + list.map(function (x) { return '<td>' + enc(x.userName || '') + '</td>'; }).join('') + '</tr>';
-                html += '</table>';
-                return html;
-            }
-            function renderStamp(line) {
-                var status = (line.status || '').toUpperCase();
-                if (status === 'APPROVED') {
-                    if (line.stampBase64) return '<img style="max-width:52px;max-height:52px;" src="data:image/png;base64,' + line.stampBase64 + '" />';
-                    return '<span class="stamp">' + enc(line.statusName || '승인') + '</span>';
-                }
-                if (status === 'READY') return '<span style="color:#1f6feb;font-weight:700;">대기</span>';
-                if (status === 'REJECTED') return '<span class="stamp">반려</span>';
-                return '<span style="color:#777;">' + enc(line.statusName || '') + '</span>';
-            }
-            function byId(id) { return document.getElementById(id); }
-            function cap(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
-            function setText(id, value) { byId(id).innerText = value || ''; }
-            function setValue(id, value) { byId(id).value = value || ''; }
-            function setSelectValue(id, value) {
-                var el = byId(id); if (!value) return;
-                var exists = false;
-                for (var i = 0; i < el.options.length; i++) if (el.options[i].value === value || el.options[i].text === value) exists = true;
-                if (!exists) { var opt = document.createElement('option'); opt.value = value; opt.text = value; el.appendChild(opt); }
-                el.value = value;
-            }
-            function enc(value) {
-                return String(value == null ? '' : value)
-                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-            }
-            app.init();
-        })();
-    </script>
+    <script src="./approval.js"></script>
 </body>
 </html>
