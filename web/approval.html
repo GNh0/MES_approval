@@ -12,6 +12,8 @@
 <body>
     <div class="wrap">
         <div class="action-bar">
+            <button class="btn" onclick="approvalApp.resetBlank()">빈양식</button>
+            <button class="btn" onclick="approvalApp.loadDemoData()">데모데이터</button>
             <button class="btn" onclick="approvalApp.applyTemplate()">템플릿 적용</button>
             <button class="btn" onclick="approvalApp.applyCalculation()">자동계산</button>
             <button class="btn" onclick="approvalApp.openLineEditor()">결재라인</button>
@@ -25,7 +27,7 @@
         </div>
 
         <div id="docPage" class="doc-page">
-            <h1 id="docTitle" class="doc-title">발주서</h1>
+            <h1 id="docTitle" class="doc-title">기안서</h1>
 
             <div class="doc-frame">
                 <div class="doc-top">
@@ -35,14 +37,14 @@
                             <th>작성일자</th>
                             <td>
                                 <div class="inline">
-                                    <input id="writeDate" class="form-control readonly" style="width:138px;" value="2026-04-24" readonly />
-                                    <select id="writeHour" class="form-control" style="width:60px;"><option>09</option></select>
-                                    <select id="writeMinute" class="form-control" style="width:60px;"><option>32</option></select>
+                                    <input id="writeDate" class="form-control readonly" style="width:138px;" readonly />
+                                    <select id="writeHour" class="form-control" style="width:60px;"></select>
+                                    <select id="writeMinute" class="form-control" style="width:60px;"></select>
                                 </div>
                             </td>
                         </tr>
-                        <tr><th>기안부서</th><td><select id="deptName" class="form-control"><option>시스템구축</option></select></td></tr>
-                        <tr><th>기안자</th><td><span id="writerName">관리자</span></td></tr>
+                        <tr><th>기안부서</th><td><select id="deptName" class="form-control"></select></td></tr>
+                        <tr><th>기안자</th><td><span id="writerName"></span></td></tr>
                     </table>
 
                     <div class="approval-area">
@@ -61,12 +63,12 @@
                         <td><div class="with-button"><input id="executorText" class="form-control" placeholder="시행자를 입력해주세요." /><button class="small-btn" onclick="approvalApp.send('OPEN_EXECUTOR')">↔</button></div></td>
                     </tr>
                     <tr><th>시행일자</th><td><input id="executeDate" class="form-control" /></td></tr>
-                    <tr><th>제목</th><td><input id="subject" class="subject-input" value="[발주서] 제일금속_20260331" /></td></tr>
+                    <tr><th>제목</th><td><input id="subject" class="subject-input" placeholder="제목을 입력하세요." /></td></tr>
                 </table>
 
                 <div class="editor-wrap">
                     <div class="template-help">
-                        템플릿 토큰 예: {{PURNUM}}, {{CUSTNM}}, {{DETAIL_ROWS}} / 계산 속성 예: data-col="supply" data-formula="qty * unp"
+                        빈양식 상태로 시작합니다. 외부에서 <b>window.setApprovalData(json)</b> 호출 시 지정된 HTML 템플릿에 업무 데이터를 바인딩합니다.
                     </div>
                     <div class="body-tab-bar">
                         <button id="tabEdit" class="body-tab active" onclick="approvalApp.changeBodyTab('edit')">문서편집</button>
@@ -105,6 +107,7 @@
         </div>
     </div>
 
+    <script src="./demo-data.js"></script>
     <script src="./approval.js"></script>
 </body>
 </html>
