@@ -24,14 +24,9 @@
             executorText: '',
             executeDate: '',
             subject: '',
-            form: {
-                formId: '',
-                formName: '',
-                formType: 'BASIC',
-                templateUrl: '',
-                templateHtml: ''
-            },
+            form: { formId: '', formName: '', formType: 'BASIC', templateUrl: '', templateHtml: '' },
             businessData: {},
+            tables: {},
             approvalLines: createDefaultLines(),
             bodyHtml: ''
         };
@@ -74,8 +69,8 @@
                 extended_valid_elements: [
                     'table[class|style|border|cellpadding|cellspacing|data-calc-table]',
                     'tr[class|style|data-row-calc]',
-                    'th[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc]',
-                    'td[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc]'
+                    'th[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc|data-dze-formula|dze_format_separator|title]',
+                    'td[class|style|colspan|rowspan|data-col|data-field|data-formula|data-calc|data-dze-formula|dze_format_separator|title]'
                 ].join(','),
                 content_style: [
                     "body { font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif; font-size:13px; line-height:1.65; }",
@@ -87,11 +82,7 @@
                     '.body-table th { background:#d9d9d9; font-weight:700; }'
                 ].join('\n'),
                 setup: function (editor) {
-                    editor.ui.registry.addButton('calcapproval', {
-                        text: '계산',
-                        tooltip: 'data-formula 자동계산',
-                        onAction: function () { app.applyCalculation(); }
-                    });
+                    editor.ui.registry.addButton('calcapproval', { text: '계산', tooltip: '자동계산', onAction: function () { app.applyCalculation(); } });
                     editor.on('init', function () {
                         editorReady = true;
                         editor.setContent(pendingBodyHtml || '');
@@ -105,9 +96,7 @@
             byId('lineModalApply').onclick = function () { app.applyLineEditor(); };
         },
 
-        resetBlank: function () {
-            this.setApprovalData(createBlankDocument());
-        },
+        resetBlank: function () { this.setApprovalData(createBlankDocument()); },
 
         loadDemoData: function () {
             if (!window.ApprovalDemoData) return alert('demo-data.js가 로드되지 않았습니다.');
@@ -116,7 +105,7 @@
 
         setApprovalData: async function (data) {
             var base = createBlankDocument();
-            this.model = merge(base, data || {});
+            this.model = normalizeModel(merge(base, data || {}));
 
             var bodyHtml = this.model.bodyHtml || '';
             if (!bodyHtml && isTemplateForm(this.model)) {
@@ -175,9 +164,7 @@
             if (window.tinymce && editorReady && getEditor()) getEditor().setContent(pendingBodyHtml);
         },
 
-        refreshPreview: function () {
-            byId('previewContent').innerHTML = this.getBodyHtml();
-        },
+        refreshPreview: function () { byId('previewContent').innerHTML = this.getBodyHtml(); },
 
         renderModelTemplate: async function () {
             var form = this.model.form || {};
@@ -278,13 +265,7 @@
             var lines = [];
             var rows = byId('lineModalBody').querySelectorAll('.line-grid');
             Array.prototype.forEach.call(rows, function (row) {
-                lines.push({
-                    type: row.querySelector('[data-k="type"]').value,
-                    role: row.querySelector('[data-k="role"]').value,
-                    userName: row.querySelector('[data-k="userName"]').value,
-                    status: 'WAIT',
-                    statusName: ''
-                });
+                lines.push({ type: row.querySelector('[data-k="type"]').value, role: row.querySelector('[data-k="role"]').value, userName: row.querySelector('[data-k="userName"]').value, status: 'WAIT', statusName: '' });
             });
             this.model.approvalLines = lines;
             this.renderApprovalLines();
@@ -327,6 +308,46 @@
         return await res.text();
     }
 
+    function normalizeModel(model) {
+        if (!model) return createBlankDocument();
+        model.tables = model.tables || {};
+        model.businessData = model.businessData || {};
+
+        var header = getFirst(model.tables.header || model.tables.master || model.tables.HEADER || model.tables.MASTER);
+        var detail = model.tables.detail || model.tables.details || model.tables.DETAIL || model.tables.purDetail || model.tables.PURDETAIL || [];
+
+        if (header && !hasAny(model.businessData)) {
+            model.businessData = mapPurchaseHeader(header);
+        } else if (header) {
+            model.businessData = merge(mapPurchaseHeader(header), model.businessData);
+        }
+
+        if (detail && detail.length > 0 && !model.businessData.DETAIL_ROWS) {
+            model.businessData.DETAIL_ROWS = detail;
+        }
+
+        if (!model.title && model.businessData.PURNUM) model.title = '발주서';
+        if (!model.subject && model.businessData.PURNUM) model.subject = '[발주서] ' + (model.businessData.CUSTNM || '') + '_' + model.businessData.PURNUM;
+
+        if ((!model.form || !isTemplateForm(model)) && model.businessData.PURNUM) {
+            model.form = model.form || {};
+            model.form.formType = 'TEMPLATE';
+            model.form.templateUrl = model.form.templateUrl || './templates/purchase-order.html';
+        }
+
+        return model;
+    }
+
+    function mapPurchaseHeader(row) {
+        return {
+            PURNUM: getVal(row, 'PURNUM'),
+            CUSTNM: getVal(row, 'CUSTNM') || getVal(row, 'CUSTCD'),
+            CUSTADDR: getVal(row, 'CUSTADDR') || getVal(row, 'ADDR'),
+            MANAGER: getVal(row, 'MANAGER') || getVal(row, 'CHARGE'),
+            TEL: getVal(row, 'TEL') || getVal(row, 'TELNO')
+        };
+    }
+
     function isTemplateForm(model) {
         var form = model.form || {};
         return String(form.formType || '').toUpperCase() === 'TEMPLATE' || !!form.templateUrl || !!form.templateHtml;
@@ -344,20 +365,20 @@
     }
 
     function renderDetailRows(rows) {
-        return rows.map(function (x) {
+        return rows.map(function (x, i) {
             return '<tr data-row-calc="purchase">' +
-                '<td data-col="seq">' + enc(x.SEQ || x.seq) + '</td>' +
-                '<td data-col="gubun">' + enc(x.GUBUN || x.gubun) + '</td>' +
-                '<td data-col="itemnm">' + enc(x.ITEMNM || x.itemNm) + '</td>' +
-                '<td data-col="spec">' + enc(x.SPEC || x.spec) + '</td>' +
-                '<td data-col="use">' + enc(x.USE || x.use) + '</td>' +
-                '<td data-col="dlvdt">' + enc(x.DLVDT || x.dlvDt) + '</td>' +
-                '<td data-col="qty">' + formatNumber(x.QTY || x.qty) + '</td>' +
-                '<td data-col="unit">' + enc(x.UNIT || x.unit) + '</td>' +
-                '<td data-col="unp">' + formatNumber(x.UNP || x.unp) + '</td>' +
-                '<td data-col="supply" data-formula="qty * unp"></td>' +
-                '<td data-col="vat" data-formula="supply * 0.1"></td>' +
-                '<td data-col="total" data-formula="supply + vat"></td>' +
+                '<td data-col="seq">' + enc(getVal(x, 'PURSEQ') || getVal(x, 'SEQ') || (i + 1)) + '</td>' +
+                '<td data-col="gubun">' + enc(getVal(x, 'LVL1NM') || getVal(x, 'GUBUN')) + '</td>' +
+                '<td data-col="itemnm">' + enc(getVal(x, 'ITEMNM')) + '</td>' +
+                '<td data-col="spec">' + enc(getVal(x, 'DWGNO') || getVal(x, 'SPEC')) + '</td>' +
+                '<td data-col="use">' + enc(getVal(x, 'PURPOSE') || getVal(x, 'USE')) + '</td>' +
+                '<td data-col="dlvdt">' + enc(formatDateText(getVal(x, 'REQDT2') || getVal(x, 'DLVDT'))) + '</td>' +
+                '<td data-col="qty" style="text-align:right;">' + formatNumber(getVal(x, 'QTY')) + '</td>' +
+                '<td data-col="unit">' + enc(getVal(x, 'QTYUNIT') || getVal(x, 'UNIT')) + '</td>' +
+                '<td data-col="unp" style="text-align:right;">' + formatNumber(getVal(x, 'UNP')) + '</td>' +
+                '<td data-col="supply" style="text-align:right;">' + formatNumber(getVal(x, 'AMT')) + '</td>' +
+                '<td data-col="vat" style="text-align:right;">' + formatNumber(getVal(x, 'TAXAMT')) + '</td>' +
+                '<td data-col="total" style="text-align:right;">' + formatNumber(getVal(x, 'TOTAMT')) + '</td>' +
                 '</tr>';
         }).join('');
     }
@@ -394,8 +415,12 @@
         return target;
     }
 
+    function getFirst(value) { return Array.isArray(value) && value.length > 0 ? value[0] : value; }
+    function hasAny(obj) { return obj && Object.keys(obj).length > 0; }
+    function getVal(row, key) { return row && Object.prototype.hasOwnProperty.call(row, key) && row[key] != null ? row[key] : ''; }
     function toNumber(value) { return Number(String(value || '').replace(/,/g, '').trim()) || 0; }
     function formatNumber(value) { return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function formatDateText(value) { var s = String(value || ''); return s.length >= 10 ? s.substring(0, 10) : s; }
     function getEditor() { return window.tinymce ? tinymce.get('bodyEditor') : null; }
     function toggleTab(name, activeName) { byId('tab' + cap(name)).classList.toggle('active', name === activeName); byId('panel' + cap(name)).classList.toggle('active', name === activeName); }
     function findReadyLine(lines) { return lines.filter(function (x) { return x.status === 'READY'; })[0]; }
