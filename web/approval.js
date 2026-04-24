@@ -3,67 +3,47 @@
     var editorReady = false;
     var pendingBodyHtml = '';
 
-    var sample = {
-        title: '발주서',
-        numberRule: '기본채번',
-        writeDate: '2026-04-24',
-        writeHour: '09',
-        writeMinute: '32',
-        deptName: '시스템구축',
-        writerName: '관리자',
-        receiverText: '',
-        executorText: '',
-        executeDate: '',
-        subject: '[발주서] 제일금속_20260331',
-        templateData: {
-            PURNUM: 'P20260416003',
-            CUSTNM: '제일금속',
-            CUSTADDR: '',
-            MANAGER: '',
-            TEL: '',
-            DETAIL_ROWS: [
-                { SEQ: 1, GUBUN: '구매품', ITEMNM: 'SLN G70', SPEC: 'SLN G70', USE: '', DLVDT: '26.03.31', QTY: 500, UNIT: 'EA', UNP: 960 }
-            ]
-        },
-        approvalLines: [
-            { type: 'APPROVAL', role: '기안', userName: '관리자', status: 'APPROVED', statusName: '승인' },
-            { type: 'APPROVAL', role: '검토', userName: '김대리', status: 'READY', statusName: '대기' },
-            { type: 'APPROVAL', role: '승인', userName: '이과장', status: 'WAIT', statusName: '' },
-            { type: 'APPROVAL', role: '승인', userName: '박부장', status: 'WAIT', statusName: '' },
-            { type: 'APPROVAL', role: '승인', userName: '', status: 'WAIT', statusName: '' },
-            { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-            { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-            { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-            { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' },
-            { type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' }
-        ],
-        templateHtml:
-            '<div class="body-inner">' +
-            '<p class="center">아래와 같이 발주하고자 하오니 검토 후 재가 바랍니다.</p>' +
-            '<div class="gap"></div>' +
-            '<p class="center">- 아 래 -</p>' +
-            '<div class="section-title">1. 발주정보</div>' +
-            '<table class="body-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-            '<thead><tr><th style="width:20%;">발주번호</th><th style="width:20%;">외주처</th><th style="width:20%;">주소</th><th style="width:20%;">담당자</th><th style="width:20%;">연락처</th></tr></thead>' +
-            '<tbody><tr><td>{{PURNUM}}</td><td>{{CUSTNM}}</td><td>{{CUSTADDR}}</td><td>{{MANAGER}}</td><td>{{TEL}}</td></tr></tbody>' +
-            '</table>' +
-            '<div class="section-title">2. 상세내역</div>' +
-            '<table class="body-table" data-calc-table="purchaseDetail" style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-            '<thead><tr><th style="width:45px;">순번</th><th style="width:70px;">구분</th><th style="width:90px;">품명</th><th style="width:90px;">규격</th><th style="width:70px;">용도</th><th style="width:70px;">납기일</th><th style="width:55px;">수량</th><th style="width:45px;">단위</th><th style="width:55px;">단가</th><th style="width:70px;">공급액</th><th style="width:70px;">부가세</th><th style="width:70px;">합계액</th></tr></thead>' +
-            '<tbody>{{DETAIL_ROWS}}</tbody>' +
-            '</table>' +
-            '</div>'
-    };
+    function createDefaultLines() {
+        var lines = [];
+        for (var i = 0; i < 5; i++) lines.push({ type: 'APPROVAL', role: i === 0 ? '기안' : '', userName: '', status: 'WAIT', statusName: '' });
+        for (var j = 0; j < 5; j++) lines.push({ type: 'AGREEMENT', role: '합의', userName: '', status: 'WAIT', statusName: '' });
+        return lines;
+    }
 
-    sample.bodyHtml = renderTemplate(sample.templateHtml, sample.templateData);
+    function createBlankDocument() {
+        var now = new Date();
+        return {
+            title: '기안서',
+            numberRule: '기본채번',
+            writeDate: formatDate(now),
+            writeHour: pad2(now.getHours()),
+            writeMinute: pad2(now.getMinutes()),
+            deptName: '',
+            writerName: '',
+            receiverText: '',
+            executorText: '',
+            executeDate: '',
+            subject: '',
+            form: {
+                formId: '',
+                formName: '',
+                formType: 'BASIC',
+                templateUrl: '',
+                templateHtml: ''
+            },
+            businessData: {},
+            approvalLines: createDefaultLines(),
+            bodyHtml: ''
+        };
+    }
 
     var app = {
-        model: {},
+        model: createBlankDocument(),
 
         init: function () {
             this.initEditor();
             this.bindModalEvents();
-            this.setApprovalData(sample);
+            this.setApprovalData(createBlankDocument());
         },
 
         initEditor: function () {
@@ -115,7 +95,6 @@
                     editor.on('init', function () {
                         editorReady = true;
                         editor.setContent(pendingBodyHtml || '');
-                        app.applyCalculation();
                     });
                 }
             });
@@ -126,8 +105,33 @@
             byId('lineModalApply').onclick = function () { app.applyLineEditor(); };
         },
 
-        setApprovalData: function (data) {
-            this.model = data || {};
+        resetBlank: function () {
+            this.setApprovalData(createBlankDocument());
+        },
+
+        loadDemoData: function () {
+            if (!window.ApprovalDemoData) return alert('demo-data.js가 로드되지 않았습니다.');
+            this.setApprovalData(window.ApprovalDemoData);
+        },
+
+        setApprovalData: async function (data) {
+            var base = createBlankDocument();
+            this.model = merge(base, data || {});
+
+            var bodyHtml = this.model.bodyHtml || '';
+            if (!bodyHtml && isTemplateForm(this.model)) {
+                bodyHtml = await this.renderModelTemplate();
+                this.model.bodyHtml = bodyHtml;
+            }
+
+            this.bindDocumentFields();
+            this.renderApprovalLines();
+            this.setBodyHtml(bodyHtml);
+            byId('htmlCode').value = bodyHtml;
+            this.refreshPreview();
+        },
+
+        bindDocumentFields: function () {
             setText('docTitle', this.model.title || '기안서');
             setSelectValue('numberRule', this.model.numberRule || '기본채번');
             setValue('writeDate', this.model.writeDate);
@@ -139,11 +143,6 @@
             setValue('executorText', this.model.executorText);
             setValue('executeDate', this.model.executeDate);
             setValue('subject', this.model.subject);
-            this.renderApprovalLines();
-            pendingBodyHtml = this.model.bodyHtml || '';
-            if (editorReady) getEditor().setContent(pendingBodyHtml);
-            byId('htmlCode').value = pendingBodyHtml;
-            this.refreshPreview();
         },
 
         renderApprovalLines: function () {
@@ -157,7 +156,7 @@
             if (currentTab === 'html' && tab !== 'html') this.setBodyHtml(byId('htmlCode').value || '');
             if (tab === 'preview') {
                 if (currentTab === 'html') this.setBodyHtml(byId('htmlCode').value || '');
-                this.applyCalculation();
+                this.applyCalculation(false);
                 this.refreshPreview();
             }
             currentTab = tab;
@@ -180,14 +179,25 @@
             byId('previewContent').innerHTML = this.getBodyHtml();
         },
 
-        applyTemplate: function () {
-            var html = renderTemplate(this.model.templateHtml || sample.templateHtml, this.model.templateData || sample.templateData);
-            this.setBodyHtml(html);
-            byId('htmlCode').value = html;
-            this.applyCalculation();
+        renderModelTemplate: async function () {
+            var form = this.model.form || {};
+            var template = form.templateHtml || '';
+            if (!template && form.templateUrl) template = await loadText(form.templateUrl);
+            if (!template) return '';
+            return renderTemplate(template, this.model.businessData || {});
         },
 
-        applyCalculation: function () {
+        applyTemplate: async function () {
+            if (!isTemplateForm(this.model)) return alert('템플릿 양식이 지정되지 않았습니다.');
+            var html = await this.renderModelTemplate();
+            this.model.bodyHtml = html;
+            this.setBodyHtml(html);
+            byId('htmlCode').value = html;
+            this.applyCalculation(false);
+            this.refreshPreview();
+        },
+
+        applyCalculation: function (notify) {
             var html = this.getBodyHtml();
             var box = document.createElement('div');
             box.innerHTML = html;
@@ -195,11 +205,12 @@
             this.setBodyHtml(box.innerHTML);
             byId('htmlCode').value = box.innerHTML;
             if (currentTab === 'preview') byId('previewContent').innerHTML = box.innerHTML;
+            if (notify !== false) alert('자동계산을 적용했습니다.');
         },
 
         collect: function () {
             if (currentTab === 'html') this.setBodyHtml(byId('htmlCode').value || '');
-            this.applyCalculation();
+            this.applyCalculation(false);
             var data = JSON.parse(JSON.stringify(this.model || {}));
             data.title = byId('docTitle').innerText;
             data.numberRule = byId('numberRule').value;
@@ -286,10 +297,7 @@
             line.status = 'APPROVED';
             line.statusName = '승인';
             var next = findNextWaitLine(this.model.approvalLines || []);
-            if (next) {
-                next.status = 'READY';
-                next.statusName = '대기';
-            }
+            if (next) { next.status = 'READY'; next.statusName = '대기'; }
             this.renderApprovalLines();
         },
 
@@ -310,32 +318,43 @@
     };
 
     window.approvalApp = app;
-    window.setApprovalData = function (data) { if (typeof data === 'string') data = JSON.parse(data); app.setApprovalData(data); };
+    window.setApprovalData = function (data) { if (typeof data === 'string') data = JSON.parse(data); return app.setApprovalData(data); };
     window.getApprovalData = function () { return app.collect(); };
+
+    async function loadText(url) {
+        var res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('템플릿을 불러올 수 없습니다: ' + url);
+        return await res.text();
+    }
+
+    function isTemplateForm(model) {
+        var form = model.form || {};
+        return String(form.formType || '').toUpperCase() === 'TEMPLATE' || !!form.templateUrl || !!form.templateHtml;
+    }
 
     function renderTemplate(template, data) {
         var result = template || '';
         data = data || {};
         Object.keys(data).forEach(function (key) {
-            if (key === 'DETAIL_ROWS') return;
+            if (Array.isArray(data[key])) return;
             result = result.split('{{' + key + '}}').join(enc(data[key]));
         });
-        result = result.split('{{DETAIL_ROWS}}').join(renderDetailRows(data.DETAIL_ROWS || []));
+        result = result.split('{{DETAIL_ROWS}}').join(renderDetailRows(data.DETAIL_ROWS || data.detailRows || []));
         return result;
     }
 
     function renderDetailRows(rows) {
         return rows.map(function (x) {
             return '<tr data-row-calc="purchase">' +
-                '<td data-col="seq">' + enc(x.SEQ) + '</td>' +
-                '<td data-col="gubun">' + enc(x.GUBUN) + '</td>' +
-                '<td data-col="itemnm">' + enc(x.ITEMNM) + '</td>' +
-                '<td data-col="spec">' + enc(x.SPEC) + '</td>' +
-                '<td data-col="use">' + enc(x.USE) + '</td>' +
-                '<td data-col="dlvdt">' + enc(x.DLVDT) + '</td>' +
-                '<td data-col="qty">' + formatNumber(x.QTY) + '</td>' +
-                '<td data-col="unit">' + enc(x.UNIT) + '</td>' +
-                '<td data-col="unp">' + formatNumber(x.UNP) + '</td>' +
+                '<td data-col="seq">' + enc(x.SEQ || x.seq) + '</td>' +
+                '<td data-col="gubun">' + enc(x.GUBUN || x.gubun) + '</td>' +
+                '<td data-col="itemnm">' + enc(x.ITEMNM || x.itemNm) + '</td>' +
+                '<td data-col="spec">' + enc(x.SPEC || x.spec) + '</td>' +
+                '<td data-col="use">' + enc(x.USE || x.use) + '</td>' +
+                '<td data-col="dlvdt">' + enc(x.DLVDT || x.dlvDt) + '</td>' +
+                '<td data-col="qty">' + formatNumber(x.QTY || x.qty) + '</td>' +
+                '<td data-col="unit">' + enc(x.UNIT || x.unit) + '</td>' +
+                '<td data-col="unp">' + formatNumber(x.UNP || x.unp) + '</td>' +
                 '<td data-col="supply" data-formula="qty * unp"></td>' +
                 '<td data-col="vat" data-formula="supply * 0.1"></td>' +
                 '<td data-col="total" data-formula="supply + vat"></td>' +
@@ -352,8 +371,7 @@
             });
             row.querySelectorAll('[data-formula]').forEach(function (cell) {
                 var key = cell.getAttribute('data-col');
-                var formula = cell.getAttribute('data-formula');
-                var result = safeFormula(formula, values);
+                var result = safeFormula(cell.getAttribute('data-formula'), values);
                 values[key] = result;
                 cell.textContent = formatNumber(result);
             });
@@ -368,6 +386,14 @@
         try { return Math.round(Function('return (' + expr + ')')()); } catch (e) { return 0; }
     }
 
+    function merge(target, source) {
+        Object.keys(source || {}).forEach(function (key) {
+            if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) target[key] = merge(target[key] || {}, source[key]);
+            else target[key] = source[key];
+        });
+        return target;
+    }
+
     function toNumber(value) { return Number(String(value || '').replace(/,/g, '').trim()) || 0; }
     function formatNumber(value) { return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
     function getEditor() { return window.tinymce ? tinymce.get('bodyEditor') : null; }
@@ -376,6 +402,8 @@
     function findNextWaitLine(lines) { return lines.filter(function (x) { return x.status === 'WAIT' && x.userName; })[0]; }
     function byId(id) { return document.getElementById(id); }
     function cap(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
+    function pad2(value) { return String(value).padStart(2, '0'); }
+    function formatDate(date) { return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate()); }
     function setText(id, value) { byId(id).innerText = value || ''; }
     function setValue(id, value) { byId(id).value = value || ''; }
     function setSelectValue(id, value) { var el = byId(id); if (!value) return; var exists = false; for (var i = 0; i < el.options.length; i++) if (el.options[i].value === value || el.options[i].text === value) exists = true; if (!exists) { var opt = document.createElement('option'); opt.value = value; opt.text = value; el.appendChild(opt); } el.value = value; }
