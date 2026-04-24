@@ -105,7 +105,7 @@
 
         setApprovalData: async function (data) {
             var base = createBlankDocument();
-            this.model = normalizeModel(merge(base, data || {}));
+            this.model = normalizeModel(merge(base, normalizeInput(data) || {}));
 
             var bodyHtml = this.model.bodyHtml || '';
             if (!bodyHtml && isTemplateForm(this.model)) {
@@ -308,33 +308,42 @@
         return await res.text();
     }
 
+    function normalizeInput(data) {
+        if (Array.isArray(data)) return { tables: { detail: data } };
+        if (!data || typeof data !== 'object') return data;
+
+        var keys = Object.keys(data);
+        if (!data.tables && !data.businessData && !data.form && !data.bodyHtml) {
+            for (var i = 0; i < keys.length; i++) {
+                if (Array.isArray(data[keys[i]])) return { tables: { detail: data[keys[i]] } };
+            }
+        }
+        return data;
+    }
+
     function normalizeModel(model) {
         if (!model) return createBlankDocument();
         model.tables = model.tables || {};
         model.businessData = model.businessData || {};
 
-        var header = getFirst(model.tables.header || model.tables.master || model.tables.HEADER || model.tables.MASTER);
-        var detail = model.tables.detail || model.tables.details || model.tables.DETAIL || model.tables.purDetail || model.tables.PURDETAIL || [];
+        var header = getFirst(getCi(model.tables, 'header') || getCi(model.tables, 'master'));
+        var detail = getCi(model.tables, 'detail') || getCi(model.tables, 'details') || getCi(model.tables, 'purDetail') || getCi(model.tables, 'PURDETAIL') || [];
 
-        if (header && !hasAny(model.businessData)) {
-            model.businessData = mapPurchaseHeader(header);
-        } else if (header) {
-            model.businessData = merge(mapPurchaseHeader(header), model.businessData);
-        }
+        if (!header && detail && detail.length > 0) header = detail[0];
 
-        if (detail && detail.length > 0 && !model.businessData.DETAIL_ROWS) {
-            model.businessData.DETAIL_ROWS = detail;
-        }
+        if (header && !hasAny(model.businessData)) model.businessData = mapPurchaseHeader(header);
+        else if (header) model.businessData = merge(mapPurchaseHeader(header), model.businessData);
 
-        if (!model.title && model.businessData.PURNUM) model.title = '발주서';
-        if (!model.subject && model.businessData.PURNUM) model.subject = '[발주서] ' + (model.businessData.CUSTNM || '') + '_' + model.businessData.PURNUM;
+        if (detail && detail.length > 0 && !getCi(model.businessData, 'DETAIL_ROWS')) model.businessData.DETAIL_ROWS = detail;
 
-        if ((!model.form || !isTemplateForm(model)) && model.businessData.PURNUM) {
+        if (!model.title && getCi(model.businessData, 'PURNUM')) model.title = '발주서';
+        if (!model.subject && getCi(model.businessData, 'PURNUM')) model.subject = '[발주서] ' + (getCi(model.businessData, 'CUSTNM') || '') + '_' + getCi(model.businessData, 'PURNUM');
+
+        if ((!model.form || !isTemplateForm(model)) && getCi(model.businessData, 'PURNUM')) {
             model.form = model.form || {};
             model.form.formType = 'TEMPLATE';
             model.form.templateUrl = model.form.templateUrl || './templates/purchase-order.html';
         }
-
         return model;
     }
 
@@ -354,18 +363,34 @@
     }
 
     function renderTemplate(template, data) {
-        var result = template || '';
         data = data || {};
-        Object.keys(data).forEach(function (key) {
-            if (Array.isArray(data[key])) return;
-            result = result.split('{{' + key + '}}').join(enc(data[key]));
+        var result = String(template || '').replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, function (all, key) {
+            var value = getCi(data, key);
+            if (Array.isArray(value)) return all;
+            return enc(value);
         });
-        result = result.split('{{DETAIL_ROWS}}').join(renderDetailRows(data.DETAIL_ROWS || data.detailRows || []));
-        return result;
+
+        var rows = getCi(data, 'DETAIL_ROWS') || getCi(data, 'detailRows') || [];
+        result = result.replace(/{{\s*DETAIL_ROWS\s*}}/gi, renderDetailRows(rows));
+
+        var box = document.createElement('div');
+        box.innerHTML = result;
+        fillDataColElements(box, data);
+        return box.innerHTML;
+    }
+
+    function fillDataColElements(root, data) {
+        root.querySelectorAll('[data-col]').forEach(function (el) {
+            var col = el.getAttribute('data-col');
+            if (!col || el.hasAttribute('data-formula')) return;
+            var value = getCi(data, col);
+            if (value == null || Array.isArray(value) || typeof value === 'object') return;
+            el.textContent = value;
+        });
     }
 
     function renderDetailRows(rows) {
-        return rows.map(function (x, i) {
+        return (rows || []).map(function (x, i) {
             return '<tr data-row-calc="purchase">' +
                 '<td data-col="seq">' + enc(getVal(x, 'PURSEQ') || getVal(x, 'SEQ') || (i + 1)) + '</td>' +
                 '<td data-col="gubun">' + enc(getVal(x, 'LVL1NM') || getVal(x, 'GUBUN')) + '</td>' +
@@ -387,11 +412,11 @@
         root.querySelectorAll('tr[data-row-calc]').forEach(function (row) {
             var values = {};
             row.querySelectorAll('[data-col]').forEach(function (cell) {
-                var key = cell.getAttribute('data-col');
+                var key = String(cell.getAttribute('data-col') || '').toLowerCase();
                 if (!cell.hasAttribute('data-formula')) values[key] = toNumber(cell.textContent);
             });
             row.querySelectorAll('[data-formula]').forEach(function (cell) {
-                var key = cell.getAttribute('data-col');
+                var key = String(cell.getAttribute('data-col') || '').toLowerCase();
                 var result = safeFormula(cell.getAttribute('data-formula'), values);
                 values[key] = result;
                 cell.textContent = formatNumber(result);
@@ -401,10 +426,24 @@
 
     function safeFormula(formula, values) {
         var expr = String(formula || '').replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, function (name) {
-            return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name] || 0) : '0';
+            return Object.prototype.hasOwnProperty.call(values, name.toLowerCase()) ? String(values[name.toLowerCase()] || 0) : '0';
         });
         if (!/^[0-9+\-*/().\s]+$/.test(expr)) return 0;
         try { return Math.round(Function('return (' + expr + ')')()); } catch (e) { return 0; }
+    }
+
+    function getCi(obj, key) {
+        if (!obj || !key) return undefined;
+        if (Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
+        var lower = String(key).toLowerCase();
+        var keys = Object.keys(obj);
+        for (var i = 0; i < keys.length; i++) if (String(keys[i]).toLowerCase() === lower) return obj[keys[i]];
+        return undefined;
+    }
+
+    function getVal(row, key) {
+        var value = getCi(row, key);
+        return value == null ? '' : value;
     }
 
     function merge(target, source) {
@@ -417,7 +456,6 @@
 
     function getFirst(value) { return Array.isArray(value) && value.length > 0 ? value[0] : value; }
     function hasAny(obj) { return obj && Object.keys(obj).length > 0; }
-    function getVal(row, key) { return row && Object.prototype.hasOwnProperty.call(row, key) && row[key] != null ? row[key] : ''; }
     function toNumber(value) { return Number(String(value || '').replace(/,/g, '').trim()) || 0; }
     function formatNumber(value) { return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
     function formatDateText(value) { var s = String(value || ''); return s.length >= 10 ? s.substring(0, 10) : s; }
